@@ -1,0 +1,23 @@
+#!/bin/bash
+
+# Extract Pokémon Data Script
+# Objective: Use advanced text manipulation tools (jq, awk, sed) to extract specific data from the API response
+
+DATA_FILE="data.json"
+
+# Check if data file exists
+if [ ! -f "$DATA_FILE" ]; then
+    echo "Error: $DATA_FILE not found. Please run the API automation script first."
+    exit 1
+fi
+
+# Extract data using jq, awk, and sed
+name_raw=$(./jq.exe -r '.name' "$DATA_FILE")
+NAME=$(echo "$name_raw" | sed 's/.*/\u&/')  # Capitalize first letter using sed
+HEIGHT=$(./jq.exe -r '.height' "$DATA_FILE" | awk '{printf "%.1f", $1/10}')  # Convert from decimeters to meters
+WEIGHT=$(./jq.exe -r '.weight' "$DATA_FILE" | awk '{printf "%.0f", $1/10}')  # Convert from hectograms to kg
+type_raw=$(./jq.exe -r '.types[0].type.name' "$DATA_FILE")
+TYPE=$(echo "$type_raw" | sed 's/.*/\u&/')  # Capitalize first letter using sed
+
+# Format and display the output
+echo "$NAME is of type $TYPE, weighs ${WEIGHT}kg, and is ${HEIGHT}m tall."

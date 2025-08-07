@@ -1,0 +1,67 @@
+#!/bin/bash
+
+# Batch Pokémon Data Retrieval Script
+# Objective: Automate the retrieval of data for multiple Pokémon and store it in separate files
+
+# List of Pokémon to fetch
+POKEMON_LIST=("bulbasaur" "ivysaur" "venusaur" "charmander" "charmeleon")
+OUTPUT_DIR="pokemon_data"
+ERROR_FILE="errors.txt"
+DELAY=1  # Delay between requests to handle rate limiting
+
+# Create output directory if it doesn't exist
+mkdir -p "$OUTPUT_DIR"
+
+# Function to log errors
+log_error() {
+    echo "$(date): $1" >> "$ERROR_FILE"
+}
+
+# Function to fetch Pokemon data with retry logic
+fetch_pokemon() {
+    local pokemon_name="$1"
+    local api_url="https://pokeapi.co/api/v2/pokemon/${pokemon_name}"
+    local output_file="${OUTPUT_DIR}/${pokemon_name}.json"
+    local max_retries=3
+    local retry_count=0
+    
+    echo "Fetching data for ${pokemon_name}..."
+    
+    while [ $retry_count -lt $max_retries ]; do
+        # Attempt to fetch data
+        if curl -s --max-time 30 --retry 0 "$api_url" -o "$output_file"; then
+            # Check if the response is valid JSON and not an error response
+            if ./jq.exe empty "$output_file" 2>/dev/null && [ "$(./jq.exe -r '.detail // empty' "$output_file")" = "" ]; then
+                echo "Saved data to ${output_file} ✅"
+                return 0
+            else
+                log_error "Invalid JSON response received for ${pokemon_name} (attempt $((retry_count + 1)))"
+                echo "Warning: Invalid JSON response for ${pokemon_name} (attempt $((retry_count + 1)))"
+                rm -f "$output_file"  # Remove invalid file
+            fi
+        else
+            log_error "Failed to fetch data for ${pokemon_name} from API (attempt $((retry_count + 1)))"
+            echo "Warning: Failed to fetch data for ${pokemon_name} (attempt $((retry_count + 1)))"
+        fi
+        
+        retry_count=$((retry_count + 1))
+        
+        if [ $retry_count -lt $max_retries ]; then
+            echo "Retrying in 2 seconds..."
+            sleep 2
+        fi
+    done
+    
+    # All retries failed
+    log_error "All $max_retries attempts failed for ${pokemon_name}. Skipping."
+    echo "Error: All $max_retries attempts failed for ${pokemon_name}. Skipping."
+    return 1
+}
+
+# Main execution
+for pokemon in "${POKEMON_LIST[@]}"; do
+    fetch_pokemon "$pokemon"
+    sleep "$DELAY"  # Add delay to prevent rate limiting
+done
+
+echo "Batch processing completed!"

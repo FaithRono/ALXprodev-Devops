@@ -1,0 +1,61 @@
+#!/bin/bash
+
+# Pokémon Data Summary Script
+# Objective: Create a report that summarizes data for multiple Pokémon
+
+OUTPUT_DIR="pokemon_data"
+CSV_FILE="pokemon_report.csv"
+
+# Check if pokemon data directory exists
+if [ ! -d "$OUTPUT_DIR" ]; then
+    echo "Error: $OUTPUT_DIR directory not found. Please run the batch processing script first."
+    exit 1
+fi
+
+# Create CSV header
+echo "Name,Height (m),Weight (kg)" > "$CSV_FILE"
+
+# Initialize variables for average calculation
+total_height=0
+total_weight=0
+count=0
+
+# Process each JSON file in the pokemon_data directory
+for json_file in "$OUTPUT_DIR"/*.json; do
+    if [ -f "$json_file" ]; then
+        # Extract data using jq
+        name=$(./jq.exe -r '.name' "$json_file")
+        # Capitalize first letter
+        NAME=$(echo "$name" | awk '{print toupper(substr($1,1,1)) tolower(substr($1,2))}' 2>/dev/null || echo "${name^}")
+        if [ -z "$NAME" ]; then
+            # Fallback to basename without extension
+            NAME=$(basename "$json_file" .json)
+            NAME="${NAME^}"  # Capitalize first letter
+        fi
+        height=$(./jq.exe -r '.height' "$json_file" | awk '{printf "%.1f", $1/10}')
+        weight=$(./jq.exe -r '.weight' "$json_file" | awk '{printf "%.1f", $1/10}')
+        
+        # Add to CSV
+        echo "$NAME,$height,$weight" >> "$CSV_FILE"
+        
+        # Add to totals for average calculation
+        total_height=$(awk "BEGIN {print $total_height + $height}")
+        total_weight=$(awk "BEGIN {print $total_weight + $weight}")
+        count=$((count + 1))
+    fi
+done
+
+# Calculate averages using awk
+if [ $count -gt 0 ]; then
+    avg_height=$(awk "BEGIN {printf \"%.2f\", $total_height / $count}")
+    avg_weight=$(awk "BEGIN {printf \"%.2f\", $total_weight / $count}")
+    
+    echo "CSV Report generated at: $CSV_FILE"
+    echo
+    cat "$CSV_FILE"
+    echo
+    echo "Average Height: $avg_height m"
+    echo "Average Weight: $avg_weight kg"
+else
+    echo "No valid Pokemon data found."
+fi

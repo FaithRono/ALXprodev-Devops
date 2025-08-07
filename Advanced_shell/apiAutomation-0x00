@@ -1,0 +1,33 @@
+#!/bin/bash
+
+# API Request Automation Script
+# Objective: Automate the process of making API requests to the Pokemon API and saving the results to a file
+
+# Pokemon API URL for Pikachu
+POKEMON_NAME="pikachu"
+API_URL="https://pokeapi.co/api/v2/pokemon/${POKEMON_NAME}"
+OUTPUT_FILE="data.json"
+ERROR_FILE="errors.txt"
+
+# Function to log errors
+log_error() {
+    echo "$(date): $1" >> "$ERROR_FILE"
+}
+
+# Make API request and handle errors
+echo "Fetching data for ${POKEMON_NAME}..."
+
+if curl -s "$API_URL" -o "$OUTPUT_FILE"; then
+    # Check if the response is valid JSON and not an error response
+    if ./jq.exe empty "$OUTPUT_FILE" 2>/dev/null; then
+        echo "Successfully fetched data for ${POKEMON_NAME} and saved to ${OUTPUT_FILE}"
+    else
+        log_error "Invalid JSON response received for ${POKEMON_NAME}"
+        echo "Error: Invalid JSON response received"
+        exit 1
+    fi
+else
+    log_error "Failed to fetch data for ${POKEMON_NAME} from API"
+    echo "Error: Failed to fetch data from API"
+    exit 1
+fi
