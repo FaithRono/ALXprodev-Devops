@@ -12,6 +12,22 @@ PIDS=()  # Array to store process IDs
 # Create output directory if it doesn't exist
 mkdir -p "$OUTPUT_DIR"
 
+# Cleanup function for signal handling
+cleanup() {
+    echo "Cleanup: Terminating background processes..."
+    for pid in "${PIDS[@]}"; do
+        if kill -0 "$pid" 2>/dev/null; then
+            echo "Killing process $pid"
+            kill "$pid" 2>/dev/null
+        fi
+    done
+    jobs
+    exit 1
+}
+
+# Set up signal handlers for proper cleanup
+trap cleanup INT TERM
+
 # Function to log errors
 log_error() {
     echo "$(date): $1" >> "$ERROR_FILE"
@@ -67,11 +83,16 @@ for pokemon in "${POKEMON_LIST[@]}"; do
     PIDS+=($!)  # Store the process ID
 done
 
+# Show running background jobs
+echo "Background jobs started:"
+jobs
+
 # Wait for all background processes to complete
 echo "Waiting for all processes to complete..."
 success_count=0
 failed_count=0
 
+# Monitor and wait for each process
 for pid in "${PIDS[@]}"; do
     if wait "$pid"; then
         success_count=$((success_count + 1))
@@ -80,11 +101,29 @@ for pid in "${PIDS[@]}"; do
     fi
 done
 
+# Check if any jobs are still running (safety check)
+if jobs | grep -q "Running"; then
+    echo "Warning: Some background jobs are still running"
+    jobs
+    echo "Waiting for remaining jobs to complete..."
+    wait  # Wait for any remaining background jobs
+fi
+
 # Summary
 echo
 echo "Parallel processing completed!"
 echo "Successfully fetched: $success_count Pokemon"
 echo "Failed to fetch: $failed_count Pokemon"
+
+# Final jobs check to ensure all processes are complete
+echo "Final background jobs status:"
+jobs
+if [ $(jobs | wc -l) -eq 0 ]; then
+    echo "✅ All background processes completed successfully"
+else
+    echo "⚠️  Some background jobs may still be running"
+    jobs
+fi
 
 # List all successfully downloaded files
 echo
@@ -94,3 +133,6 @@ for json_file in "$OUTPUT_DIR"/*.json; do
         basename "$json_file"
     fi
 done
+
+# Clear the trap before normal exit
+trap - INT TERM
